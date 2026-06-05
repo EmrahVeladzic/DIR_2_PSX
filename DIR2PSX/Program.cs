@@ -5,16 +5,20 @@ class Program
     static int Main(string[] args)
     {
         try
-        {
-            Console.WriteLine("DIR2PSX - PS1 ISO builder");
+        {           
         
             string? sub_dir = args.Length > 0 ? args[0] : null;
 
+            if (string.IsNullOrWhiteSpace(sub_dir))
+            {
+                Console.WriteLine("Please provide the name of the subdirectory you wish to convert.");
+                return 0;
+            }
+
             string current_dir = Directory.GetCurrentDirectory();
 
-            string full_dir = !string.IsNullOrWhiteSpace(sub_dir)? Path.Combine(current_dir, sub_dir) : current_dir;
+            string full_dir = Path.Combine(current_dir, sub_dir);
 
-            Console.WriteLine(full_dir);
 
             if (!Directory.Exists(full_dir))
             {

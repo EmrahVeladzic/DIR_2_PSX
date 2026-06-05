@@ -15,7 +15,8 @@ public interface IFileEntry
     public Int32 Size {get; set;}
     public string Name {get; set;}  
     public string? Resolve();
-
+    public byte[] Data {get; set;}
+    public Int32 LBA {get; set;}
 }
 
 public interface IDirectory
@@ -25,6 +26,12 @@ public interface IDirectory
     public List<IDirectory> Subdirectories {get; set;}
 
     public List<IFileEntry> Files {get; set;}
+
+    public IDirectory? Parent {get; set;}
+
+    public Int32 TableIndex {get; set;}
+
+    public Int32 LBA {get; set;}
 
     public string? Resolve();
 
@@ -36,9 +43,11 @@ public class AssetFile : IFileEntry
     public Int32 Size {get; set;} = 0;
     public string Name {get; set;} = "";
     public bool IsRaw {get; set;} = false;
-    public string? Resolve()
-    {       
+    public byte[] Data {get; set;} = [];
+    public Int32 LBA {get; set;}
 
+    public string? Resolve()
+    {
         if (Name != Name.ToUpperInvariant())
         {
             return $"{Name} - File names and extensions must be uppercase.";
@@ -81,7 +90,9 @@ public class AssetFile : IFileEntry
                 return $"{Name} - The allowed characters are \"A-Z\", \"0-9\", and \"_\".";
 
             }
-        }        
+        }      
+
+        Name+=";1";  
         
         return null;
     }
@@ -91,10 +102,13 @@ public class AssetFile : IFileEntry
 public class Executable : IFileEntry
 {
     public Int32 Size {get; set;} = 0;
-    public string Name {get; set;} = "";   
-    public string ResolvedName {get; set;} = "";
+    public string Name {get; set;} = "";       
+    public byte[] Data {get; set;} = [];
+    public Int32 LBA {get; set;}
     public string? Resolve()
     {
+        string ResolvedName = "";
+
         int dotCount = Name.Count(c => c == '.');
 
         if (dotCount != 1)
@@ -103,6 +117,8 @@ public class Executable : IFileEntry
         }
 
         string[] parts = Name.Split(".",2);
+
+        if(parts[1]=="EXE"){return null;}
 
         if (string.IsNullOrWhiteSpace(parts[0]))
         {
@@ -124,7 +140,26 @@ public class Executable : IFileEntry
                 return $"{Name} - Could not resolve, got {ResolvedName} - The allowed characters are \"A-Z\", \"0-9\", and \"_\".";
 
             }
-        }        
+        }     
+
+        Name=ResolvedName;   
+
+        EXEResult result = EXE_Creator.GetEXE(Data,parts[0].ToUpperInvariant());
+
+        if((result.Data==null&&result.Error==null)||(result.Data!=null&&result.Error!=null)){throw new Exception();}
+
+        if (result.Error != null)
+        {
+            return result.Error;
+        }
+        if (result.Data != null)
+        {
+            Data=result.Data;
+            Size = Data.Length;
+        
+        }
+          
+        Name+=";1"; 
         
         return null;
     }
@@ -139,18 +174,24 @@ public class GameDirectory : IDirectory
 
     public List<IFileEntry> Files {get; set;} = new();
 
+    public IDirectory? Parent {get; set;}
+
+    public Int32 TableIndex {get; set;} = 0;
+
+    public Int32 LBA {get; set;}
+
     public string? Resolve()
-    {
-        if(this!=Directory_Mapper.Root){
+    {   
+        if(Parent!=null){
 
             if (string.IsNullOrWhiteSpace(Name))
             {
                 return $"{Name} - Empty names are not allowed.";
             }
 
-            if (Name.Length < 1 || Name.Length > 31)
+            if (Name.Length < 1 || Name.Length > 8)
             {
-                return $"{Name} - Directory names need to be between 1 and 31 characters long.";
+                return $"{Name} - Directory names need to be between 1 and 8 characters long.";
             }
 
             if (Name != Name.ToUpper())
@@ -158,18 +199,18 @@ public class GameDirectory : IDirectory
                 return $"{Name} - Directory names need to be uppercase.";
             }
 
+            for(int i = 0; i<Name.Length; i++)
+            {
+                if(!CharsetValidator.AllowedChars.Contains(Name[i]))
+                {                
+                    return $"{Name} - The allowed characters are \"A-Z\", \"0-9\", and \"_\".";
+
+                }
+            }    
+
         }
-
-        for(int i = 0; i<Name.Length; i++)
-        {
-            if(!CharsetValidator.AllowedChars.Contains(Name[i]))
-            {                
-                return $"{Name} - The allowed characters are \"A-Z\", \"0-9\", and \"_\".";
-
-            }
-        }    
-
-
+        else{Name="\0";}
+        
         foreach(IDirectory sub in Subdirectories)
         {
             string? cascade = sub.Resolve();
@@ -190,6 +231,7 @@ public class GameDirectory : IDirectory
             }
         }
         
+        Files=Files.OrderBy(f=>f.Name).ToList();
 
         return null;
     }    
