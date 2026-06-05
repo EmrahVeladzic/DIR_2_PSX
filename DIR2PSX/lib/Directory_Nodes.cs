@@ -10,6 +10,13 @@ public static class CharsetValidator
     };
 }
 
+public enum Mode : byte
+{
+    MODE_1 = 0,
+    MODE_2F1 = 1,
+    MODE_2F2 = 2
+}
+
 public interface IFileEntry
 {
     public Int32 Size {get; set;}
@@ -17,6 +24,31 @@ public interface IFileEntry
     public string? Resolve();
     public byte[] Data {get; set;}
     public Int32 LBA {get; set;}
+    public Mode WritingMode {get; set;}
+
+    public byte[] ToRecordEntry()
+    {
+        Int32 length = Name.Length +33;
+        if ((length & 0x1) == 1)
+        {
+            length++;
+        }
+        byte[] output = new byte[length];
+        
+        output[0]=(byte)length;
+
+        Utils.WriteInt32BothEndian(output,2,(UInt32)LBA);
+        Utils.WriteInt32BothEndian(output,10,(UInt32)Data.Length);
+
+        output[25]=0x0;
+
+        Utils.WriteInt16BothEndian(output,28,0x1);
+        output[32]= (byte)Name.Length;
+
+        Utils.WriteString(output,33,Name.Length,Name);
+
+        return output;
+    }
 }
 
 public interface IDirectory
@@ -31,20 +63,28 @@ public interface IDirectory
 
     public Int32 TableIndex {get; set;}
 
+    public Int32 RecordBytes {get; set;} 
+
     public Int32 LBA {get; set;}
 
     public string? Resolve();
 
+    public byte[] ToRecord();
+
+    public byte[] ToRecordEntry();
+
 
 }
+
 
 public class AssetFile : IFileEntry
 {
     public Int32 Size {get; set;} = 0;
     public string Name {get; set;} = "";
-    public bool IsRaw {get; set;} = false;
+    public Mode Encoding {get; set;} = Mode.MODE_1;
     public byte[] Data {get; set;} = [];
-    public Int32 LBA {get; set;}
+    public Int32 LBA {get; set;} = 0;
+    public Mode WritingMode {get; set;} = Mode.MODE_1;
 
     public string? Resolve()
     {
@@ -97,6 +137,8 @@ public class AssetFile : IFileEntry
         return null;
     }
 
+
+
 }
 
 public class Executable : IFileEntry
@@ -104,7 +146,10 @@ public class Executable : IFileEntry
     public Int32 Size {get; set;} = 0;
     public string Name {get; set;} = "";       
     public byte[] Data {get; set;} = [];
-    public Int32 LBA {get; set;}
+    public Int32 LBA {get; set;} = 0;
+
+    public Mode WritingMode {get; set;} = Mode.MODE_1;
+
     public string? Resolve()
     {
         string ResolvedName = "";
@@ -144,7 +189,7 @@ public class Executable : IFileEntry
 
         Name=ResolvedName;   
 
-        EXEResult result = EXE_Creator.GetEXE(Data,parts[0].ToUpperInvariant());
+        EXEResult result = EXE_Creator.GetEXE(Data,parts[0]);
 
         if((result.Data==null&&result.Error==null)||(result.Data!=null&&result.Error!=null)){throw new Exception();}
 
@@ -160,6 +205,8 @@ public class Executable : IFileEntry
         }
           
         Name+=";1"; 
+        Directory_Mapper.CNFPath+=Name;
+
         
         return null;
     }
@@ -179,6 +226,8 @@ public class GameDirectory : IDirectory
     public Int32 TableIndex {get; set;} = 0;
 
     public Int32 LBA {get; set;}
+
+    public Int32 RecordBytes {get; set;}  = 0;
 
     public string? Resolve()
     {   
@@ -235,6 +284,73 @@ public class GameDirectory : IDirectory
 
         return null;
     }    
+
+    public byte[] ToRecordEntry()
+    {
+        Int32 length = Name.Length +33;
+        if ((length & 0x1) == 1)
+        {
+            length++;
+        }
+        byte[] output = new byte[length];
+        
+        output[0]=(byte)length;
+
+        Utils.WriteInt32BothEndian(output,2,(UInt32)LBA);
+        Utils.WriteInt32BothEndian(output,10,(UInt32)RecordBytes);
+
+        output[25]=0x2;
+
+        Utils.WriteInt16BothEndian(output,28,0x1);
+        output[32]= (byte)Name.Length;
+
+        Utils.WriteString(output,33,Name.Length,Name);
+
+        return output;
+    }
+
+
+    public byte[] ToRecord()
+    {
+        List<byte> record = new();
+
+        GameDirectory dot = new GameDirectory
+        {
+            Name = "\0",
+            LBA = LBA,
+            TableIndex = TableIndex,
+            RecordBytes = RecordBytes,
+            Parent = null,
+            Subdirectories = new(),
+            Files = new()
+        };
+
+        GameDirectory dot_dot = new GameDirectory
+        {
+            Name = "\x01",
+            LBA = Parent?.LBA??LBA,
+            TableIndex = Parent?.TableIndex??TableIndex,
+            RecordBytes = Parent?.RecordBytes??RecordBytes,
+            Parent = null,
+            Subdirectories = new(),
+            Files = new()
+        };
+
+        record.AddRange(dot.ToRecordEntry());
+        record.AddRange(dot_dot.ToRecordEntry());
+
+        foreach(IDirectory sub in Subdirectories)
+        {
+            record.AddRange(sub.ToRecordEntry());
+        }
+        foreach(IFileEntry f in Files)
+        {
+            record.AddRange(f.ToRecordEntry());
+        }
+
+
+        return record.ToArray();
+    }
 
 }
 

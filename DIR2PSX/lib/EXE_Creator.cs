@@ -12,6 +12,8 @@ public static class EXE_Creator
 {
     public static readonly Int32 PADDING_HEADER_SIZE = 2048;
 
+    public static string Stack {get; set;}="";
+
     public static UInt32 GetSymbolAddress(byte[] elf, string symbol)
     {
         UInt32 e_shoff = BitConverter.ToUInt32(elf,0x20);
@@ -85,6 +87,8 @@ public static class EXE_Creator
             output.Error = "Could not find _stackTop.";
             return output;
         }
+
+        Stack = _sp.ToString("X8");
 
         UInt32 e_entry = BitConverter.ToUInt32(elf,0x18);
         UInt32 e_phoff = BitConverter.ToUInt32(elf,0x1C);

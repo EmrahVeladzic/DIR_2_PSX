@@ -16,6 +16,8 @@ public static class Directory_Mapper
 {    
     public static GameDirectory? Root {get; set;}
 
+    public static AssetFile? CNF {get; set;}
+
     public static Executable? Program {get; set;}
 
     public static Int32 TotalSize {get; set;} = 0; 
@@ -27,6 +29,10 @@ public static class Directory_Mapper
     public static List<GameDirectory> DirectoryTable {get; set;} = new();
 
     public static Int32 PathTableSize {get; set;} = 0;
+
+    public static Int32 FileStartingSector {get; set;} = 0;
+
+    public static string CNFPath {get; set;} ="";
 
     public static string? Validate()
     {
@@ -41,6 +47,14 @@ public static class Directory_Mapper
         if (Program == null)
         {
             return "No executable found.";
+        }
+        if (CNF == null)
+        {
+            return "Failed to create SYSTEM.CNF.";
+        }
+        if (!Root.Files.Any(f => ReferenceEquals(f, CNF)))
+        {
+            return "SYSTEM.CNF not assigned to root.";
         }
         if (TotalSize > ISO_Buffer.VOLUME_SIZE)
         {
@@ -60,7 +74,6 @@ public static class Directory_Mapper
         {
             LastIndex++;
             gd.TableIndex=LastIndex;
-            Console.WriteLine($"{gd.Name} - {gd.TableIndex}");
         }
         else
         {
@@ -90,6 +103,54 @@ public static class Directory_Mapper
         DirectoryTable=DirectoryTable.OrderBy(d=>d.TableIndex).ToList();
     }
 
+    public static string? SolveDirectoryRecords()
+    {             
+
+        foreach(GameDirectory gd in DirectoryTable)
+        {   
+            gd.LBA=ISO_Writer.CurrentIndex;
+
+            gd.RecordBytes=68;
+
+
+            foreach(GameDirectory subdir in gd.Subdirectories)
+            {
+                Int32 record_size = 33;
+                record_size+=subdir.Name.Length;
+                if ((subdir.Name.Length & 0x1) != 1)
+                {
+                    record_size++;
+                }
+
+                gd.RecordBytes += record_size;
+            }
+
+            foreach(IFileEntry f in gd.Files)
+            {
+                Int32 record_size = 33;
+                record_size+=f.Name.Length;
+                if ((f.Name.Length & 0x1) != 1)
+                {
+                    record_size++;
+                }
+
+                gd.RecordBytes += record_size;
+            }
+
+            if (gd.RecordBytes > ISO_Buffer.USER_SECTOR_SIZE)
+            {
+                return $"{((gd==Root)? "ROOT" : gd.Name)} - Directory record overrun ({gd.RecordBytes}/{ISO_Buffer.USER_SECTOR_SIZE}).";
+            }
+
+            ISO_Writer.CurrentIndex += ISO_Writer.SectorsNeeded(gd.RecordBytes,false);
+            FileStartingSector=ISO_Writer.CurrentIndex;
+        }        
+
+
+
+        return null;
+    }
+
     public static void GetPathTableBytes()
     {   
         PathTableSize=0;     
@@ -108,7 +169,7 @@ public static class Directory_Mapper
         }        
 
 
-        ISO_Writer.CurrentIndex += ISO_Writer.SectorsNeeded(PathTableSize*2,false);
+        ISO_Writer.CurrentIndex += ISO_Writer.SectorsNeeded(PathTableSize,false) * 2;
     }
 
 
@@ -149,6 +210,10 @@ public static class Directory_Mapper
                 return output;
             }
 
+            CNFPath = path+"/";
+
+            CNF = new AssetFile{Data= new byte[ISO_Buffer.USER_SECTOR_SIZE],Name="SYSTEM.CNF"};
+
 
             Executable exe = new();
             exe.Name=name;            
@@ -166,7 +231,6 @@ public static class Directory_Mapper
         {
             AssetFile asset = new();
             asset.Name=name;
-            asset.IsRaw=false;
             asset.Size=file_size;
             asset.Data = File.ReadAllBytes(current);
             file=asset;
@@ -243,14 +307,43 @@ public static class Directory_Mapper
             return root.Error;
         }
 
+        string rl = !string.IsNullOrWhiteSpace(name)? Path.Combine(path, name) : path;
+
+        if (Root != null && CNF != null)
+        {
+            Root.Files.Add(CNF);
+        }
+
+
+        CNFPath=CNFPath.Replace(rl,"cdrom:");
+        CNFPath=CNFPath.Replace("/","\\");
+        CNFPath=CNFPath.Replace("\\\\","\\");
+
+
         string? err = Validate();
+
         if(err!=null){return err;}
 
-        AssignIndices();
-
+        if(CNF==null){throw new Exception();}
+        string cnf_content = $"BOOT={CNFPath}\nTCB=4\nEVENT=10\nSTACK={EXE_Creator.Stack}\n";
+        cnf_content=cnf_content.Replace("CDROM","cdrom");
+        CNF.Data= new byte[cnf_content.Length];
+        CNF.Size=CNF.Data.Length;
+        Utils.WriteString(CNF.Data,0,cnf_content.Length,cnf_content);
         
 
 
+
+        AssignIndices();
+
+        GetPathTableBytes();
+
+        err = SolveDirectoryRecords();
+
+        if(err != null)
+        {
+            return err;
+        }
 
         return null;
 

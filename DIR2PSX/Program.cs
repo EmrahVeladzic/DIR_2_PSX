@@ -33,6 +33,23 @@ class Program
                 return 1;
             }
 
+            string? write_output = ISO_Writer.WriteDirectory();
+            if (write_output != null)
+            {
+                Console.WriteLine(write_output);
+                return 1;
+            }
+
+            string output = Path.Combine(current_dir, sub_dir + ".bin");
+
+            
+
+
+
+            File.WriteAllBytes(output, ISO_Buffer.Buffer[..((Int32)ISO_Writer.EOF * ISO_Buffer.RAW_SECTOR_SIZE)]);
+            Console.WriteLine($"Created {sub_dir+".bin"} at {current_dir}");
+
+
             return 0;
             
         }
