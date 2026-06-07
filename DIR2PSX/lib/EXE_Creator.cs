@@ -156,8 +156,8 @@ public static class EXE_Creator
 
         Array.Copy(BitConverter.GetBytes(lo_addr), 0, header, 0x18, 4);
 
-        Array.Copy(BitConverter.GetBytes((UInt32)binary.Length), 0, header, 0x1C, 4);
-        
+        Array.Copy(BitConverter.GetBytes((UInt32)padded_size), 0, header, 0x1C, 4);
+                
 
         Array.Copy(BitConverter.GetBytes(_sp), 0, header, 0x30, 4);
 

@@ -53,10 +53,30 @@ public static class ISO_Writer
             return "Out of sectors to write to.";
         }
 
+        for(Int32 i = 0; i<needed; i++)
+        {
+            Span<byte> raw_sector = ISO_Buffer.GetSector(CurrentIndex+i);
+            Utils.WriteSyncAndHeader(CurrentIndex+i,Mode.MODE_2F1,raw_sector);
+
+            raw_sector[18]=0x8;
+
+            raw_sector[22]=0x8;
+
+            int offset = i * ISO_Buffer.USER_SECTOR_SIZE;
+            int remaining = Math.Min(ISO_Buffer.USER_SECTOR_SIZE, data.Length - offset);
+            data.AsSpan(offset, remaining).CopyTo(raw_sector.Slice(24));
+
+            UInt32 edc = Utils.ComputeEDC(raw_sector, 16, 2064);
+            raw_sector[2064] = (byte)(edc & 0xFF);
+            raw_sector[2065] = (byte)((edc >> 8) & 0xFF);
+            raw_sector[2066] = (byte)((edc >> 16) & 0xFF);
+            raw_sector[2067] = (byte)((edc >> 24) & 0xFF);
+            Utils.ComputeECC(raw_sector,Mode.MODE_2F1);
+        }
 
         CurrentIndex+=needed;
 
-        return "Not currently supported.";
+        return null;
     }
 
     public static string? WriteForm2(byte[] data)
@@ -106,7 +126,7 @@ public static class ISO_Writer
             {
                 file.LBA=CurrentIndex;
 
-                err = WriteMode1(file.Data);
+                err = WriteForm1(file.Data);
 
                 if(err!=null){return err;}
             }
@@ -126,7 +146,7 @@ public static class ISO_Writer
                 throw new Exception();
             }
 
-            WriteMode1(record);
+            WriteForm1(record);
 
 
         }
@@ -141,8 +161,8 @@ public static class ISO_Writer
 
         CurrentIndex = 18;
 
-        WriteMode1(le_table);
-        WriteMode1(be_table);
+        WriteForm1(le_table);
+        WriteForm1(be_table);
 
         CurrentIndex = 16;
 
@@ -197,7 +217,7 @@ public static class ISO_Writer
         pvd_term[ISO_Buffer.USER_SECTOR_SIZE+6]=0x1;
 
 
-        WriteMode1(pvd_term);
+        WriteForm1(pvd_term);
 
         return err;
         
