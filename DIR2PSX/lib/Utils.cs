@@ -111,52 +111,34 @@ public static class Utils {
     }
 
 
-    public static void ComputeECC(Span<byte> sector, Mode mode)
+    static void ComputeECCBlock(Span<byte> sector, bool zeroHeader,int majorCount, int minorCount, int majorMult, int minorInc, int destOffset)
     {
-        Int32 start = 12;
-
-        if(mode != Mode.MODE_1){start = 16;}
-
-        
-        for (Int32 major = 0; major < 43; major++)
+        int size = majorCount * minorCount;
+        for (int major = 0; major < majorCount; major++)
         {
-            Int32 index = major;
+            int index = (major >> 1) * majorMult + (major & 1);
             byte a = 0, b = 0;
-            for (Int32 minor = 0; minor < 24; minor++)
+            for (int minor = 0; minor < minorCount; minor++)
             {
-                byte temp = sector[start + index];
-                index += 43;
+                byte temp = (zeroHeader && index < 4) ? (byte)0 : sector[12 + index];
+                index += minorInc;
+                if (index >= size) index -= size;
                 a ^= temp;
                 b ^= temp;
                 a = ISO_Buffer.ECC_F_LUT[a];
             }
             a = ISO_Buffer.ECC_B_LUT[ISO_Buffer.ECC_F_LUT[a] ^ b];
-            b = (byte)(a ^ b);
-            sector[2076 + major * 2] = a;
-            sector[2076 + major * 2 + 1] = b;
-        }
-
-
-        for (Int32 major = 0; major < 26; major++)
-        {
-            Int32 index = major;
-            byte a = 0, b = 0;
-            for (Int32 minor = 0; minor < 43; minor++)
-            {
-                byte temp = sector[start + index];
-                index += 44;
-                if (index >= 43 * 44) index -= 43 * 44;
-                a ^= temp;
-                b ^= temp;
-                a = ISO_Buffer.ECC_F_LUT[a];
-            }
-            a = ISO_Buffer.ECC_B_LUT[ISO_Buffer.ECC_F_LUT[a] ^ b];
-            b = (byte)(a ^ b);
-            sector[2248 + major * 2] = a;
-            sector[2248 + major * 2 + 1] = b;
+            sector[destOffset + major] = a;
+            sector[destOffset + major + majorCount] = (byte)(a ^ b);
         }
     }
 
+    public static void ComputeECC(Span<byte> sector, Mode mode)
+    {
+        bool zeroHeader = mode != Mode.MODE_1;
+        ComputeECCBlock(sector, zeroHeader, 86, 24, 2, 86, 2076);  
+        ComputeECCBlock(sector, zeroHeader, 52, 43, 86, 88, 2248); 
+    }
 
     public static byte[] GetPathTable(bool big_endian = false)
     {

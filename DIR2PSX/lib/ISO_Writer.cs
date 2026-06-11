@@ -66,12 +66,12 @@ public static class ISO_Writer
             int remaining = Math.Min(ISO_Buffer.USER_SECTOR_SIZE, data.Length - offset);
             data.AsSpan(offset, remaining).CopyTo(raw_sector.Slice(24));
 
-            UInt32 edc = Utils.ComputeEDC(raw_sector, 16, 2064);
-            raw_sector[2064] = (byte)(edc & 0xFF);
-            raw_sector[2065] = (byte)((edc >> 8) & 0xFF);
-            raw_sector[2066] = (byte)((edc >> 16) & 0xFF);
-            raw_sector[2067] = (byte)((edc >> 24) & 0xFF);
-            Utils.ComputeECC(raw_sector,Mode.MODE_2F1);
+            UInt32 edc = Utils.ComputeEDC(raw_sector, 16, 2056);
+            raw_sector[2072] = (byte)(edc & 0xFF);
+            raw_sector[2073] = (byte)((edc >> 8) & 0xFF);
+            raw_sector[2074] = (byte)((edc >> 16) & 0xFF);
+            raw_sector[2075] = (byte)((edc >> 24) & 0xFF);
+            Utils.ComputeECC(raw_sector, Mode.MODE_2F1);
         }
 
         CurrentIndex+=needed;
