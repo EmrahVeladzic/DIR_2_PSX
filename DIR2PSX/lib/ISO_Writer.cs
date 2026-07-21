@@ -96,7 +96,7 @@ public static class ISO_Writer
 
     public static string? WriteDirectory()
     {
-        if (Directory_Mapper.Root == null || Directory_Mapper.Program == null || !Directory_Mapper.Root.Files.Any(f => ReferenceEquals(f, Directory_Mapper.CNF))||!Directory_Mapper.Root.Files.Any(f => ReferenceEquals(f, Directory_Mapper.Program)))
+        if (Directory_Mapper.Root == null || Directory_Mapper.Program == null || !Directory_Mapper.Root.Files.Any(f => ReferenceEquals(f, Directory_Mapper.CNF)))
         {
             return "Mapper state corruption. Please do not modify the subfolder during execution.";
         }
