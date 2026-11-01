@@ -325,7 +325,7 @@ public static class Directory_Mapper
         if(err!=null){return err;}
 
         if(CNF==null){throw new Exception();}
-        string cnf_content = $"BOOT={CNFPath}\nTCB=4\nEVENT=10\nSTACK={EXE_Creator.Stack}\n";
+        string cnf_content = $"BOOT={CNFPath}\r\nTCB=4\r\nEVENT=10\r\nSTACK={EXE_Creator.Stack}\r\n";
         cnf_content=cnf_content.Replace("CDROM","cdrom");
         CNF.Data= new byte[cnf_content.Length];
         CNF.Size=CNF.Data.Length;

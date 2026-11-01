@@ -297,7 +297,7 @@ public class GameDirectory : IDirectory
         output[0]=(byte)length;
 
         Utils.WriteInt32BothEndian(output,2,(UInt32)LBA);
-        Utils.WriteInt32BothEndian(output,10,(UInt32)RecordBytes);
+        Utils.WriteInt32BothEndian(output,10,(UInt32)(ISO_Writer.SectorsNeeded(RecordBytes)*ISO_Buffer.USER_SECTOR_SIZE));
 
         output[25]=0x2;
 
@@ -353,5 +353,3 @@ public class GameDirectory : IDirectory
     }
 
 }
-
-

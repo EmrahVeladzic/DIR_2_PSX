@@ -22,17 +22,13 @@ public static class ISO_Buffer
     {
         ECC_F_LUT = new byte[256];
         ECC_B_LUT = new byte[256];
-        
-        UInt32 seed = 1;
-        for (int i = 0; i < 255; i++)
+
+        for (int i = 0; i < 256; i++)
         {
-            ECC_F_LUT[i] = (byte)seed;
-            ECC_B_LUT[(byte)seed] = (byte)i;
-            seed <<= 1;
-            if ((seed & 0x100) != 0) seed ^= 0x11D;
+            int j = (i << 1) ^ (((i & 0x80) != 0) ? 0x11D : 0);
+            ECC_F_LUT[i] = (byte)j;
+            ECC_B_LUT[i ^ (byte)j] = (byte)i;
         }
-        ECC_F_LUT[255] = 0;
-        ECC_B_LUT[0] = 0;
     }
 
     public static readonly UInt32[] EDC_TABLE = Utils.BuildEDCTable();
@@ -42,4 +38,3 @@ public static class ISO_Buffer
 
 
 }
-

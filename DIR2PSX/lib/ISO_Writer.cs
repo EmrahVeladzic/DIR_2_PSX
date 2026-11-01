@@ -1,4 +1,3 @@
-
 namespace DIR2PSX;
 
 public static class ISO_Writer
@@ -58,9 +57,11 @@ public static class ISO_Writer
             Span<byte> raw_sector = ISO_Buffer.GetSector(CurrentIndex+i);
             Utils.WriteSyncAndHeader(CurrentIndex+i,Mode.MODE_2F1,raw_sector);
 
-            raw_sector[18]=0x8;
+            byte submode = (i == needed - 1) ? (byte)0x89 : (byte)0x08;
 
-            raw_sector[22]=0x8;
+            raw_sector[18]=submode;
+
+            raw_sector[22]=submode;
 
             int offset = i * ISO_Buffer.USER_SECTOR_SIZE;
             int remaining = Math.Min(ISO_Buffer.USER_SECTOR_SIZE, data.Length - offset);
@@ -103,18 +104,11 @@ public static class ISO_Writer
 
         string? err = null;
 
-        for (int i = 0; i < 16; i++)
-        {
-            Span<byte> sector = ISO_Buffer.GetSector(i);
-            Utils.WriteSyncAndHeader(i, Mode.MODE_1, sector);
-            
-            UInt32 edc = Utils.ComputeEDC(sector, 0, 2064);
-            sector[2064] = (byte)(edc & 0xFF);
-            sector[2065] = (byte)((edc >> 8) & 0xFF);
-            sector[2066] = (byte)((edc >> 16) & 0xFF);
-            sector[2067] = (byte)((edc >> 24) & 0xFF);
-            Utils.ComputeECC(sector, Mode.MODE_1);
-        }
+        CurrentIndex = 0;
+
+        err = WriteForm1(new byte[ISO_Buffer.USER_SECTOR_SIZE * 16]);
+
+        if(err!=null){return err;}
 
         CurrentIndex = Directory_Mapper.FileStartingSector;
 
@@ -210,6 +204,8 @@ public static class ISO_Writer
 
         pvd_term[881]=0x1;
 
+        Utils.WriteString(pvd_term,1024,8,"CD-XA001");
+
         pvd_term[ISO_Buffer.USER_SECTOR_SIZE]=0xFF;
 
         Utils.WriteString(pvd_term,ISO_Buffer.USER_SECTOR_SIZE+1,5,"CD001");
@@ -229,4 +225,3 @@ public static class ISO_Writer
   
 
 }
-
